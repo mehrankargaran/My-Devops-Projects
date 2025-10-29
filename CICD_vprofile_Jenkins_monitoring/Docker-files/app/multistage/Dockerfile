@@ -1,0 +1,14 @@
+FROM 192.168.2.136:5000/maven:3.9.9-eclipse-temurin-21-jammy AS build
+
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+COPY . .
+RUN mvn package -DskipTests
+
+FROM 192.168.2.136:5000/tomcat:10-jdk21
+RUN rm -rf /usr/local/tomcat/webapps/*
+COPY --from=build /app/target/vprofile-v2.war /usr/local/tomcat/webapps/ROOT.war
+EXPOSE 8080
+CMD ["catalina.sh", "run"]

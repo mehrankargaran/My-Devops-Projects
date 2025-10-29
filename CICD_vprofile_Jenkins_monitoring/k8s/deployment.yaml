@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vprofile-deployment
+  labels:
+    app: vprofile
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vprofile
+  template:
+    metadata:
+      labels:
+        app: vprofile
+    spec:
+      containers:
+      - name: vprofile
+        image: 192.168.2.136:5000/vprofileappimg:latest
+        ports:
+        - containerPort: 8080
+        imagePullPolicy: Always

@@ -1,0 +1,128 @@
+pipeline {
+    agent any
+
+    tools {
+        maven "MAVEN3"
+        jdk "OracleJDK17"
+    }
+
+    environment {
+        registryIP = "192.168.2.136:5000"
+        appRegistry = "vprofileappimg"
+        IMAGE = "${registryIP}/${appRegistry}:${BUILD_NUMBER}"
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'
+        PUSHGATEWAY = "http://192.168.2.25:9091"
+        JOB_NAME = "vprofile_pipeline"
+    }
+
+    stages {
+
+        stage('Fetch Code') {
+            steps {
+                echo "📥 Fetching code from GitHub..."
+                sh 'echo "jenkins_stage_status{stage=\\"fetch\\",status=\\"start\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}'
+
+                git branch: 'docker', credentialsId: 'github-token', url: 'https://github.com/mehrankargaran/vprofile.git'
+                sh 'echo "jenkins_stage_status{stage=\\"fetch\\",status=\\"end\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}'
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                echo "⚙️ Building with Maven..."
+                sh """
+                echo "jenkins_stage_status{stage=\\"build\\",status=\\"start\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}
+                mvn clean package -DskipTests
+                echo "jenkins_stage_status{stage=\\"build\\",status=\\"end\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}
+                """
+            }
+        }
+
+        stage('Docker Build & Push') {
+            steps {
+                echo "🐳 Building and pushing Docker image..."
+                sh """
+                echo "jenkins_stage_status{stage=\\"docker\\",status=\\"start\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}
+
+                docker build -t ${IMAGE} -f Docker-files/app/multistage/Dockerfile .
+                docker push ${IMAGE}
+
+                docker tag ${IMAGE} ${registryIP}/${appRegistry}:latest
+                docker push ${registryIP}/${appRegistry}:latest
+
+                echo "jenkins_stage_status{stage=\\"docker\\",status=\\"end\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}
+                """
+            }
+        }
+
+        stage('Kubernetes Deploy') {
+            steps {
+                echo "🚀 Deploying to Kubernetes..."
+                sh """
+                echo "jenkins_stage_status{stage=\\"deploy\\",status=\\"start\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}
+
+                mkdir -p k8s
+
+                cat <<EOF > k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vprofile-deployment
+  labels:
+    app: vprofile
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vprofile
+  template:
+    metadata:
+      labels:
+        app: vprofile
+    spec:
+      containers:
+      - name: vprofile
+        image: ${IMAGE}
+        ports:
+        - containerPort: 8080
+        imagePullPolicy: Always
+EOF
+
+                cat <<EOF > k8s/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: vprofile-service
+spec:
+  selector:
+    app: vprofile
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080
+EOF
+
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
+
+                kubectl rollout status deployment/vprofile-deployment
+                kubectl get svc vprofile-service -o wide
+
+                echo "jenkins_stage_status{stage=\\"deploy\\",status=\\"end\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment successful!"
+            sh 'echo "jenkins_build_result{result=\\"success\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}'
+        }
+        failure {
+            echo "❌ Build failed!"
+            sh 'echo "jenkins_build_result{result=\\"failure\\"} 1" | curl --data-binary @- ${PUSHGATEWAY}/metrics/job/${JOB_NAME}'
+        }
+    }
+}

@@ -1,0 +1,5 @@
+registry-certs/
+jenkins-certs/
+*.crt
+*.key
+*.pem

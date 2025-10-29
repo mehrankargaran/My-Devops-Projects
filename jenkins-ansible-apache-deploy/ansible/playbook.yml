@@ -1,0 +1,27 @@
+# /var/lib/jenkins/ansible/playbook.yml
+---
+- name: Install and start Apache on target
+  hosts: web
+  become: yes
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install apache2
+      apt:
+        name: apache2
+        state: latest
+
+    - name: Ensure apache2 is started and enabled
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+
+    - name: Wait for port 80 to be open
+      wait_for:
+        port: 80
+        host: 127.0.0.1
+        timeout: 30

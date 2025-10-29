@@ -1,0 +1,9 @@
+1. Jenkins installed on Ubuntu 22.04 (192.168.2.25)
+2. Ansible installed on Jenkins server
+3. SSH key generated for user 'jenkins' and copied to 192.168.2.26
+4. Ansible playbook (playbook.yml) created to install Apache
+5. Inventory (hosts) created with target VM details
+6. Jenkins job of type "Freestyle project" configured:
+   - Build step: Execute shell
+   - Command: ansible-playbook -i ansible/hosts ansible/playbook.yml
+7. Verified with curl and systemctl status apache2 on target
