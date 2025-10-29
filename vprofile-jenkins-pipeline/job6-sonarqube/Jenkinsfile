@@ -1,0 +1,88 @@
+pipeline {
+    agent any
+
+    tools {
+        maven "MAVEN3"
+        jdk "OracleJDK17"
+    }
+
+    environment {
+        MAVEN_OPTS = "-Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true"
+        DUMMY_VAR = "dummy"
+    }
+
+    stages {
+        stage('Fetch code') {
+            steps {
+                git branch: 'vp-rem', url: 'https://github.com/fariborzfallahzadeh/vprofile-project.git'
+            }
+        }
+
+        stage('Create pom.xml') {
+            steps {
+                dir('vprofile-project') {
+                    writeFile file: 'pom.xml', text: '''(همون محتوای کامل pom.xml که خودت دادی)'''
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean install -DskipTests -Dmaven.compiler.release=17'
+            }
+            post {
+                success {
+                    archiveArtifacts artifacts: '**/*.war'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'mvn test -Dmaven.compiler.release=17'
+            }
+        }
+
+        stage('Checkstyle Analysis') {
+            steps {
+                sh 'mvn checkstyle:checkstyle -Dmaven.compiler.release=17'
+            }
+        }
+
+        stage('Sonar Analysis') {
+            environment {
+                scannerHome = tool 'sonar4.7'
+            }
+            steps {
+                withSonarQubeEnv('sonar') {
+                    withCredentials([string(credentialsId: 'MySonarToken', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                            -Dsonar.projectKey=vprofile \
+                            -Dsonar.projectName=vprofile \
+                            -Dsonar.projectVersion=1.0 \
+                            -Dsonar.sources=src \
+                            -Dsonar.java.binaries=target/classes \
+                            -Dsonar.junit.reportsPath=target/surefire-reports \
+                            -Dsonar.jacoco.reportsPath=target/jacoco.exec \
+                            -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml \
+                            -Dsonar.login=${SONAR_TOKEN}
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline execution finished."
+        }
+        failure {
+            echo "Pipeline failed! Please check the logs."
+        }
+        success {
+            echo "Pipeline completed successfully 🎉"
+        }
+    }
+}

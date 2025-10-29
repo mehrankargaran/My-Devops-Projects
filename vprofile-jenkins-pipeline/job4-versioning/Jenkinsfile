@@ -1,0 +1,32 @@
+pipeline {
+    agent any
+    tools {
+        maven "MAVEN3"
+        jdk "OracleJDK11"
+    }
+
+    stages {
+        stage('Fetch code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/mehrankargaran/vprofile'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean install -DskipTests'
+            }
+        }
+
+        stage('Versioning') {
+            steps {
+                sh '''
+                mkdir -p versions
+                export BUILD_TIMESTAMP=$(date +%y-%m-%d_%H%M)
+                cp target/*.war versions/vprofile-V${BUILD_ID}-${BUILD_TIMESTAMP}.war
+                ls -l versions
+                '''
+            }
+        }
+    }
+}

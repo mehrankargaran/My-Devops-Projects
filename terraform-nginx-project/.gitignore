@@ -1,0 +1,10 @@
+# Terraform state files
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Log files
+*.log
+
+# Local generated scripts
+local/install_nginx.sh

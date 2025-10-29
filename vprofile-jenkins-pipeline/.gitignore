@@ -1,0 +1,8 @@
+# Ignore build files
+target/
+versions/
+*.class
+*.log
+*.tmp
+.idea/
+.vscode/

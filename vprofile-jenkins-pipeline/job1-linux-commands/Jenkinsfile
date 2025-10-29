@@ -1,0 +1,21 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Run Linux commands') {
+            steps {
+                echo "Running simple local Linux commands for debug"
+                sh 'echo "----- whoami -----"; whoami'
+                sh 'echo "----- pwd -----"; pwd'
+                sh 'echo "----- id -----"; id'
+                sh 'echo "----- ls -la (workspace) -----"; ls -la'
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Job1 finished."
+        }
+    }
+}
